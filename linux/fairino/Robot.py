@@ -465,7 +465,7 @@ class RPC():
                     self.reconnect()
 
     def robot_state_routine_thread(self):
-        """处理机器人状态数据包的线程例程"""
+        """Thread routine for processing robot state data packets"""
 
         while not self.closeRPC_state:
             recvbuf = bytearray(self.BUFFER_SIZE)
@@ -475,21 +475,22 @@ class RPC():
             index = 0
             length = 0
             tmp_len = 0
-            expected_length = self.BUFFER_SIZE  # 初始期望接收长度
+            expected_length = self.BUFFER_SIZE  # Initial expected receive length
 
             try:
                 while not self.robot_realstate_exit and not self.stop_event.is_set():
                     recvbyte = self.sock_cli_state.recv_into(recvbuf)
-                    # print(f"接收机器人状态字节 {recvbyte}")
-                    # print("Python 结构体大小:", sizeof(self.robot_state_pkg))
+                    # print(f"Received robot state bytes {recvbyte}")
+                    # print("Python struct size:", sizeof(self.robot_state_pkg))
                     if recvbyte <= 0:
                         self.sock_cli_state.close()
-                        print("接收机器人状态字节 -1")
+                        # print("Receive robot state byte -1")
                         if not self.reconnect():
-                            return
+                            time.sleep(2) # Wait before retrying to prevent busy loop if reconnect fails instantly
+                            continue
                         continue
 
-                    # 处理临时缓冲区数据
+                    # Process temporary buffer data
                     if tmp_len > 0:
                         if tmp_len + recvbyte <= self.BUFFER_SIZE:
                             recvbuf[:tmp_len + recvbyte] = tmp_recvbuf[:tmp_len] + recvbuf[:recvbyte]
@@ -500,7 +501,7 @@ class RPC():
 
                     i = 0
                     while i < recvbyte:
-                        # 查找包头
+                        # Find packet header
                         if format(recvbuf[i], '02X') == "5A" and not find_head_flag:
                             if i + 4 < recvbyte and format(recvbuf[i + 1], '02X') == "5A":
                                 find_head_flag = True
@@ -508,10 +509,10 @@ class RPC():
                                 index = 1
                                 length = (recvbuf[i + 4] << 8) | recvbuf[i + 3]
 
-                                #检查长度是否超过预期
+                                # Check if length exceeds expectation
                                 if length + 7 > expected_length:
                                     expected_length = length + 7
-                                    # 需要接收更多数据
+                                    # Need to receive more data
                                     tmp_recvbuf[:recvbyte - i] = recvbuf[i:recvbyte]
                                     tmp_len = recvbyte - i
                                     find_head_flag = False
@@ -522,7 +523,7 @@ class RPC():
                                 i += 1
                                 continue
 
-                        # 已找到包头，收集数据
+                        # Header found, collect data
                         elif find_head_flag and index < length + 5:
                             if i >= recvbyte:
                                 break
@@ -531,7 +532,7 @@ class RPC():
                             index += 1
                             i += 1
 
-                        # 检查校验和
+                        # Check checksum
                         elif find_head_flag and index >= length + 5:
                             if i + 1 < recvbyte:
                                 checksum = sum(state_pkg[:index])
@@ -544,10 +545,10 @@ class RPC():
                                     find_head_flag = False
                                     index = 0
                                     length = 0
-                                    expected_length = self.BUFFER_SIZE  # 重置期望长度
+                                    expected_length = self.BUFFER_SIZE  # Reset expected length
                                     i += 2
                                 else:
-                                    # 校验失败处理
+                                    # Checksum failed handling
                                     self.robot_state_pkg.jt_cur_pos[0] = 0
                                     self.robot_state_pkg.jt_cur_pos[1] = 0
                                     self.robot_state_pkg.jt_cur_pos[2] = 0
@@ -556,7 +557,7 @@ class RPC():
                                     length = 0
                                     i += 2
                             else:
-                                # 数据不足，保存到临时缓冲区
+                                # Not enough data, save to temporary buffer
                                 tmp_recvbuf[:recvbyte - i] = recvbuf[i:recvbyte]
                                 tmp_len = recvbyte - i
                                 break
@@ -568,7 +569,7 @@ class RPC():
                     self.sock_cli_state.close()
                     self.sock_cli_state_state = False
                     self.SDK_state = False
-                    # print("SDK读取机器人实时数据失败", ex)
+                    # print("SDK failed to read robot real-time data", ex)
                     self.reconnect()
 
     def robot_state_routine_thread_new(self):
