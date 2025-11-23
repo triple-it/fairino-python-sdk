@@ -486,8 +486,7 @@ class RPC():
                         self.sock_cli_state.close()
                         # print("Receive robot state byte -1")
                         if not self.reconnect():
-                            time.sleep(2) # Wait before retrying to prevent busy loop if reconnect fails instantly
-                            continue
+                            return
                         continue
 
                     # Process temporary buffer data
@@ -1120,6 +1119,7 @@ class RPC():
                 desc_pos = [ret[1], ret[2], ret[3], ret[4], ret[5], ret[6]]
             else:
                 error = ret[0]
+                # print(f"GetForwardKin failed with error: {error}")
                 return error
         flag = True
         while flag:
@@ -1129,6 +1129,9 @@ class RPC():
                 flag = False
             except socket.error as e:
                 flag = True
+        if error != 0:
+             # print(f"MoveJ failed in Robot.py with error: {error}, params: joint_pos={joint_pos}, desc_pos={desc_pos}, tool={tool}, user={user}")
+             pass
         return error
 
     """   
